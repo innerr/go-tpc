@@ -77,8 +77,10 @@ func (w *Workloader) runPayment(ctx context.Context, thread int) error {
 	defer tx.Rollback()
 
 	// UPDATE warehouse SET w_ytd = w_ytd + :h_amount WHERE w_id=:w_id
-	query := "UPDATE warehouse SET w_ytd = w_ytd + ? WHERE w_id = ?"
-	if _, err := tx.ExecContext(ctx, query, d.hAmount, d.wID); err != nil {
+	query := "UPDATE warehouse SET w_ytd = w_ytd + %f WHERE w_id = %d"
+
+	query = fmt.Sprintf(query, d.hAmount, d.wID)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
@@ -86,16 +88,20 @@ func (w *Workloader) runPayment(ctx context.Context, thread int) error {
 	// 	:w_street_1, :w_street_2, :w_city, :w_state, :w_zip, :w_name FROM warehouse
 	// 	WHERE w_id=:w_id;
 	query = `SELECT w_street_1, w_street_2, w_city, w_state, w_zip, 
-w_name FROM warehouse WHERE w_id = ?`
-	if err := tx.QueryRowContext(ctx, query, d.wID).Scan(&d.wStreet1, &d.wStreet2,
+w_name FROM warehouse WHERE w_id = %d`
+
+	query = fmt.Sprintf(query, d.wID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&d.wStreet1, &d.wStreet2,
 		&d.wCity, &d.wState, &d.wZip, &d.wName); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
 	// UPDATE district SET d_ytd = d_ytd + :h_amount
 	// 	WHERE d_w_id = :w_id AND d_id = :d_id;
-	query = "UPDATE district SET d_ytd = d_ytd + ? WHERE d_w_id = ? AND d_id = ?"
-	if _, err := tx.ExecContext(ctx, query, d.hAmount, d.wID, d.dID); err != nil {
+	query = "UPDATE district SET d_ytd = d_ytd + %f WHERE d_w_id = %d AND d_id = %d"
+
+	query = fmt.Sprintf(query, d.hAmount, d.wID, d.dID)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
@@ -103,8 +109,9 @@ w_name FROM warehouse WHERE w_id = ?`
 	//  INTO :d_street_1, :d_street_2, :d_city, :d_state, :d_zip, :d_name
 	// 	FROM district WHERE d_w_id = :w_id AND d_id = :d_id;
 	query = `SELECT d_street_1, d_street_2, d_city, d_state, d_zip, d_name FROM 
-district WHERE d_w_id = ? AND d_id = ?`
-	if err := tx.QueryRowContext(ctx, query, d.wID, d.dID).Scan(&d.dStreet1, &d.dStreet2,
+district WHERE d_w_id = %d AND d_id = %d`
+	query = fmt.Sprintf(query, d.wID, d.dID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&d.dStreet1, &d.dStreet2,
 		&d.dCity, &d.dState, &d.dZip, &d.dName); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
@@ -114,8 +121,10 @@ district WHERE d_w_id = ? AND d_id = ?`
 		// SELECT count(c_id) INTO :namecnt FROM customer
 		// WHERE c_w_id = :c_w_id AND c_d_id = :c_d_id AND c_last = :c_last;
 		var nameCnt int
-		query = `SELECT count(c_id) namecnt FROM customer WHERE c_w_id = ? AND c_d_id = ? AND c_last = ?`
-		if err := tx.QueryRowContext(ctx, query, d.cWID, d.cDID, d.cLast).Scan(&nameCnt); err != nil {
+		query = `SELECT count(c_id) namecnt FROM customer WHERE c_w_id = %d AND c_d_id = %d AND c_last = "%s"`
+
+		query = fmt.Sprintf(query, d.cWID, d.cDID, d.cLast)
+		if err := tx.QueryRowContext(ctx, query).Scan(&nameCnt); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 
@@ -130,8 +139,10 @@ district WHERE d_w_id = ? AND d_id = ?`
 			nameCnt++
 		}
 
-		query = `SELECT c_id FROM customer WHERE c_w_id = ? AND c_d_id = ? AND c_last = ? ORDER BY c_first`
-		rows, err := tx.QueryContext(ctx, query, d.cWID, d.cDID, d.cLast)
+		query = `SELECT c_id FROM customer WHERE c_w_id = %d AND c_d_id = %d AND c_last = "%s" ORDER BY c_first`
+		
+		query = fmt.Sprintf(query, d.cWID, d.cDID, d.cLast)
+		rows, err := tx.QueryContext(ctx, query)
 		if err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
@@ -157,9 +168,11 @@ district WHERE d_w_id = ? AND d_id = ?`
 	// 	FROM customer WHERE c_w_id = :c_w_id AND c_d_id = :c_d_id
 	// 	AND c_id = :c_id FOR UPDATE;
 	query = `SELECT c_first, c_middle, c_last, c_street_1, c_street_2, c_city, c_state, c_zip, c_phone,
-c_credit, c_credit_lim, c_discount, c_balance, c_since FROM customer WHERE c_w_id = ? AND c_d_id = ? 
-AND c_id = ? FOR UPDATE`
-	if err := tx.QueryRowContext(ctx, query, d.cWID, d.cDID, d.cID).Scan(&d.cFirst, &d.cMiddle, &d.cLast,
+c_credit, c_credit_lim, c_discount, c_balance, c_since FROM customer WHERE c_w_id = %d AND c_d_id = %d 
+AND c_id = %d FOR UPDATE`
+
+	query = fmt.Sprintf(query, d.cWID, d.cDID, d.cID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&d.cFirst, &d.cMiddle, &d.cLast,
 		&d.cStreet1, &d.cStreet2, &d.cCity, &d.cState, &d.cZip, &d.cPhone, &d.cCredit, &d.cCreditLim,
 		&d.cDiscount, &d.cBalance, &d.cSince); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
@@ -168,8 +181,10 @@ AND c_id = ? FOR UPDATE`
 	if d.cCredit == "BC" {
 		// SELECT c_data INTO :c_data FROM customer
 		// WHERE c_w_id=:c_w_id AND c_d_id=:c_d_id AND c_id=:c_id
-		query = `SELECT c_data FROM customer WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?`
-		if err := tx.QueryRowContext(ctx, query, d.cWID, d.cDID, d.cID).Scan(&d.cData); err != nil {
+		query = `SELECT c_data FROM customer WHERE c_w_id = %d AND c_d_id = %d AND c_id = %d`
+
+		query = fmt.Sprintf(query, d.cWID, d.cDID, d.cID)
+		if err := tx.QueryRowContext(ctx, query).Scan(&d.cData); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 
@@ -185,18 +200,24 @@ AND c_id = ? FOR UPDATE`
 		// 	WHERE c_w_id = :c_w_id
 		// 	AND c_d_id = :c_d_id AND c_id = :c_id;
 		// refer 2.5.2.2 Case 2
-		query = `UPDATE customer SET c_balance = c_balance - ?, c_ytd_payment = c_ytd_payment + ?, 
-c_payment_cnt = c_payment_cnt + 1, c_data = ? WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?`
-		if _, err := tx.ExecContext(ctx, query, d.hAmount, d.hAmount, newData, d.cWID, d.cDID, d.cID); err != nil {
+		query = `UPDATE customer SET c_balance = c_balance - %f, c_ytd_payment = c_ytd_payment + %f, 
+c_payment_cnt = c_payment_cnt + 1, c_data = "%s" WHERE c_w_id = %d AND c_d_id = %d AND c_id = %d`
+
+
+		query = fmt.Sprintf(query, d.hAmount, d.hAmount, newData, d.cWID, d.cDID, d.cID)
+		if _, err := tx.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 	} else {
 		// UPDATE customer SET c_balance = :c_balance WHERE c_w_id = :c_w_id AND c_d_id = :c_d_id AND
 		//  c_id = :c_id;
 		// refer 2.5.2.2 Case 1
-		query = `UPDATE customer SET c_balance = c_balance - ?, c_ytd_payment = c_ytd_payment + ?, 
-c_payment_cnt = c_payment_cnt + 1 WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?`
-		if _, err := tx.ExecContext(ctx, query, d.hAmount, d.hAmount, d.cWID, d.cDID, d.cID); err != nil {
+		query = `UPDATE customer SET c_balance = c_balance - %f, c_ytd_payment = c_ytd_payment + %f, 
+c_payment_cnt = c_payment_cnt + 1 WHERE c_w_id = %d AND c_d_id = %d AND c_id = %d`
+
+
+		query = fmt.Sprintf(query, d.hAmount, d.hAmount, d.cWID, d.cDID, d.cID)
+		if _, err := tx.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 	}
@@ -205,8 +226,11 @@ c_payment_cnt = c_payment_cnt + 1 WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?`
 	// 	VALUES (:c_d_id, :c_w_id, :c_id, :d_id, :w_id, :datetime, :h_amount, :h_data);
 	hData := fmt.Sprintf("%10s    %10s", d.wName, d.dName)
 	query = `INSERT INTO history (row_id, h_c_d_id, h_c_w_id, h_c_id, h_d_id, h_w_id, h_date, h_amount, h_data)
-VALUES (unhex(replace(uuid(), '-', '')), ?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, query, d.cDID, d.cWID, d.cID, d.dID, d.wID, time.Now().Format(timeFormat), d.hAmount, hData); err != nil {
+VALUES (unhex(replace(uuid(), '-', '')), %d, %d, %d, %d, %d, "%s", %f, "%s")`
+
+
+	query = fmt.Sprintf(query,  d.cDID, d.cWID, d.cID, d.dID, d.wID, time.Now().Format(timeFormat), d.hAmount, hData)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 

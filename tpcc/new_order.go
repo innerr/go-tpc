@@ -117,25 +117,30 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int) error {
 	// SELECT c_discount, c_last, c_credit, w_tax INTO :c_discount, :c_last, :c_credit,
 	// 	:w_tax FROM customer, warehouse WHERE w_id = :w_id AND c_w_id = w_id AND c_d_id = :d_id AND c_id = :c_id;
 	query := `SELECT c_discount, c_last, c_credit, w_tax FROM customer, 
-warehouse WHERE w_id = ? AND c_w_id = w_id AND c_d_id = ? AND c_id = ?`
+warehouse WHERE w_id = %d AND c_w_id = w_id AND c_d_id = %d AND c_id = %d`
 
-	if err := tx.QueryRowContext(ctx, query, d.wID, d.dID, d.cID).Scan(&d.cDiscount, &d.cLast, &d.cCredit, &d.wTax); err != nil {
+	query = fmt.Sprintf(query, d.wID, d.dID, d.cID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&d.cDiscount, &d.cLast, &d.cCredit, &d.wTax); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
 	// Process 2
 	// SELECT d_next_o_id, d_tax INTO :d_next_o_id, :d_tax FROM district WHERE d_id = :d_id AND d_w_id = :w_id FOR UPDATE;
 
-	query = `SELECT d_next_o_id, d_tax FROM district WHERE d_id = ? AND d_w_id = ? FOR UPDATE`
-	if err := tx.QueryRowContext(ctx, query, d.dID, d.wID).Scan(&d.dNextOID, &d.dTax); err != nil {
+	query = `SELECT d_next_o_id, d_tax FROM district WHERE d_id = %d AND d_w_id = %d FOR UPDATE`
+
+	query = fmt.Sprintf(query, d.dID, d.wID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&d.dNextOID, &d.dTax); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
 	// Process 3
 
 	// UPDATE district SET d_next_o_id = :d_next_o_id + 1 WHERE d_id = :d_id AND d_w_id = :w_id;
-	query = "UPDATE district SET d_next_o_id = ? + 1 WHERE d_id = ? AND d_w_id = ?"
-	if _, err := tx.ExecContext(ctx, query, d.dNextOID, d.dID, d.wID); err != nil {
+	query = "UPDATE district SET d_next_o_id = %d + 1 WHERE d_id = %d AND d_w_id = %d"
+
+	query = fmt.Sprintf(query, d.dNextOID, d.dID, d.wID)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
@@ -146,17 +151,21 @@ warehouse WHERE w_id = ? AND c_w_id = w_id AND c_d_id = ? AND c_id = ?`
 	// INSERT INTO orders (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_ol_cnt, o_all_local)
 	// 	VALUES (:o_id , :d _id , :w _id , :c_id , :datetime, :o_ol_cnt, :o_all_local);
 	query = `INSERT INTO orders (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_ol_cnt, o_all_local) 
-VALUES (?, ?, ?, ?, ?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, query, oID, d.dID, d.wID, d.cID,
-		time.Now().Format(timeFormat), d.oOlCnt, allLocal); err != nil {
+VALUES (%d, %d, %d, %d, "%s", %d, %d)`
+
+	query = fmt.Sprintf(query, oID, d.dID, d.wID, d.cID,
+		time.Now().Format(timeFormat), d.oOlCnt, allLocal)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
 	// Process 5
 
 	// INSERT INTO new_order (no_o_id, no_d_id, no_w_id) VALUES (:o_id , :d _id , :w _id );
-	query = `INSERT INTO new_order (no_o_id, no_d_id, no_w_id) VALUES (?, ?, ?)`
-	if _, err := tx.ExecContext(ctx, query, oID, d.dID, d.wID); err != nil {
+	query = `INSERT INTO new_order (no_o_id, no_d_id, no_w_id) VALUES (%d, %d, %d)`
+
+	query = fmt.Sprintf(query, oID, d.dID, d.wID)
+	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("Exec %s failed %v", query, err)
 	}
 
@@ -165,9 +174,10 @@ VALUES (?, ?, ?, ?, ?, ?, ?)`
 		// Process 6
 
 		// SELECT i_price, i_name , i_data INTO :i_price, :i_name, :i_data FROM item WHERE i_id = :ol_i_id;
-		query = "SELECT i_price, i_name, i_data FROM item WHERE i_id = ?"
+		query = "SELECT i_price, i_name, i_data FROM item WHERE i_id = %d"
 
-		if err := tx.QueryRowContext(ctx, query, item.olIID).Scan(&item.iPrice, &item.iName, &item.iData); err != nil {
+		query = fmt.Sprintf(query, item.olIID)
+		if err := tx.QueryRowContext(ctx, query).Scan(&item.iPrice, &item.iName, &item.iData); err != nil {
 			if err == sql.ErrNoRows {
 				return nil
 			}
@@ -185,14 +195,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?)`
 		// 	FROM stock WHERE s_i_id = :ol_i_id
 		// 	AND s_w_id = :ol_supply_w_id FOR UPDATE;
 		query = fmt.Sprintf(`SELECT s_quantity, s_data, s_dist_%02d s_dist FROM stock 
-WHERE s_i_id = ? AND s_w_id = ? FOR UPDATE`, d.dID)
+WHERE s_i_id = %d AND s_w_id = %d FOR UPDATE`, d.dID, item.olIID, item.olSupplyWID)
 
 		var distInfo struct {
 			sQuantity int    `db:"s_quantity"`
 			sData     string `db:"s_data"`
 			sDist     string `db:"s_dist"`
 		}
-		if err := tx.QueryRowContext(ctx, query, item.olIID, item.olSupplyWID).Scan(&distInfo.sQuantity, &distInfo.sData, &distInfo.sDist); err != nil {
+		if err := tx.QueryRowContext(ctx, query).Scan(&distInfo.sQuantity, &distInfo.sData, &distInfo.sDist); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 
@@ -210,8 +220,10 @@ WHERE s_i_id = ? AND s_w_id = ? FOR UPDATE`, d.dID)
 		if item.remoteWarehouse {
 			remoteCnt = 1
 		}
-		query = "UPDATE stock SET s_quantity = ?, s_ytd = s_ytd + ?, s_order_cnt = s_order_cnt + 1, s_remote_cnt = s_remote_cnt + ? WHERE s_i_id = ? AND s_w_id = ?"
-		if _, err := tx.ExecContext(ctx, query, distInfo.sQuantity, item.olQuantity, remoteCnt, item.olIID, item.olSupplyWID); err != nil {
+		query = "UPDATE stock SET s_quantity = %d, s_ytd = s_ytd + %d, s_order_cnt = s_order_cnt + 1, s_remote_cnt = s_remote_cnt + %d WHERE s_i_id = %d AND s_w_id = %d"
+
+		query = fmt.Sprintf(query, distInfo.sQuantity, item.olQuantity, remoteCnt, item.olIID, item.olSupplyWID)
+		if _, err := tx.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 
@@ -226,9 +238,11 @@ WHERE s_i_id = ? AND s_w_id = ? FOR UPDATE`, d.dID)
 		// 	VALUES (:o_id, :d_id, :w_id, :ol_number, :ol_i_id,
 		//  :ol_supply_w_id, :ol_quantity, :ol_amount, :ol_dist_info);
 		query = `INSERT INTO order_line (ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id,
-ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-		if _, err := tx.ExecContext(ctx, query, oID, d.dID, d.wID, item.olNumber,
-			item.olIID, item.olSupplyWID, item.olQuantity, olAmount, distInfo.sDist); err != nil {
+ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info) VALUES (%d, %d, %d, %d, %d, %d, %d, %f, "%s")`
+
+		query = fmt.Sprintf(query, oID, d.dID, d.wID, item.olNumber,
+			item.olIID, item.olSupplyWID, item.olQuantity, olAmount, distInfo.sDist)
+		if _, err := tx.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("Exec %s failed %v", query, err)
 		}
 	}

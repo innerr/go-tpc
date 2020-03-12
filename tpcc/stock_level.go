@@ -2,6 +2,7 @@ package tpcc
 
 import (
 	"context"
+	"fmt"
 )
 
 func (w *Workloader) runStockLevel(ctx context.Context, thread int) error {
@@ -20,8 +21,10 @@ func (w *Workloader) runStockLevel(ctx context.Context, thread int) error {
 	// SELECT d_next_o_id INTO :o_id FROM district WHERE d_w_id=:w_id AND d_id=:d_id;
 
 	var oID int
-	query := "SELECT d_next_o_id FROM district WHERE d_w_id = ? AND d_id = ?"
-	if err := tx.QueryRowContext(ctx, query, wID, dID).Scan(&oID); err != nil {
+	query := "SELECT d_next_o_id FROM district WHERE d_w_id = %d AND d_id = %d"
+
+	query = fmt.Sprintf(query, wID, dID)
+	if err := tx.QueryRowContext(ctx, query).Scan(&oID); err != nil {
 		return err
 	}
 
@@ -29,10 +32,12 @@ func (w *Workloader) runStockLevel(ctx context.Context, thread int) error {
 	// WHERE ol_w_id=:w_id AND ol_d_id=:d_id AND ol_o_id<:o_id AND ol_o_id>=:o_id-20
 	// AND s_w_id=:w_id AND s_i_id=ol_i_id AND s_quantity < :threshold;
 	query = `SELECT COUNT(DISTINCT (s_i_id)) stock_count FROM order_line, stock
-WHERE ol_w_id = ? AND ol_d_id = ? AND ol_o_id < ? AND ol_o_id >= ? - 20 
-AND s_w_id = ? AND s_i_id = ol_i_id AND s_quantity < ?`
+WHERE ol_w_id = %d AND ol_d_id = %d AND ol_o_id < %d AND ol_o_id >= %d - 20 
+AND s_w_id = %d AND s_i_id = ol_i_id AND s_quantity < %d`
+
+	query = fmt.Sprintf(query, wID, dID, oID, oID, wID, threshold)
 	var stockCount int
-	if err := tx.QueryRowContext(ctx, query, wID, dID, oID, oID, wID, threshold).Scan(&stockCount); err != nil {
+	if err := tx.QueryRowContext(ctx, query).Scan(&stockCount); err != nil {
 		return err
 	}
 
