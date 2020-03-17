@@ -58,6 +58,14 @@ func registerTpcc(root *cobra.Command) {
 		},
 	}
 
+	var cmdPlan = &cobra.Command{
+		Use:   "plan",
+		Short: "Dump sql plan for the workload",
+		Run: func(cmd *cobra.Command, _ []string) {
+			executeTpcc("plan")
+		},
+	}
+
 	var cmdRun = &cobra.Command{
 		Use:   "run",
 		Short: "Run workload",
@@ -82,7 +90,7 @@ func registerTpcc(root *cobra.Command) {
 		},
 	}
 
-	cmd.AddCommand(cmdRun, cmdPrepare, cmdCleanup, cmdCheck)
+	cmd.AddCommand(cmdRun, cmdPrepare, cmdPlan, cmdCleanup, cmdCheck)
 
 	root.AddCommand(cmd)
 }

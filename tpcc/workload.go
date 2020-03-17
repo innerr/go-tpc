@@ -25,7 +25,7 @@ var tables = []string{tableItem, tableCustomer, tableDistrict, tableHistory,
 
 type txn struct {
 	name   string
-	action func(ctx context.Context, threadID int) error
+	action func(ctx context.Context, threadID int, dumpPlan bool) error
 	weight int
 	// keyingTime time.Duration
 	// thinkingTime time.Duration
@@ -283,8 +283,7 @@ func (w *Workloader) getState(ctx context.Context) *tpccState {
 	return s
 }
 
-// Run implements Workloader interface
-func (w *Workloader) Run(ctx context.Context, threadID int) error {
+func (w *Workloader) prepareStmts(ctx context.Context) {
 	s := w.getState(ctx)
 
 	if s.newOrderStmts == nil {
@@ -339,6 +338,13 @@ func (w *Workloader) Run(ctx context.Context, threadID int) error {
 			stockLevelCount:          prepareStmt(ctx, s.Conn, stockLevelCount),
 		}
 	}
+}
+
+// Run implements Workloader interface
+func (w *Workloader) Run(ctx context.Context, threadID int) error {
+	s := w.getState(ctx)
+
+	w.prepareStmts(ctx)
 
 	// refer 5.2.4.2
 	if s.index == len(s.decks) {
@@ -352,9 +358,13 @@ func (w *Workloader) Run(ctx context.Context, threadID int) error {
 	txn := w.txns[txnIndex]
 
 	start := time.Now()
-	err := txn.action(ctx, threadID)
+	err := txn.action(ctx, threadID, false)
 
 	measurement.Measure(txn.name, time.Now().Sub(start), err)
+
+	if err != nil {
+		fmt.Printf("txn failed, err %v\n", err.Error())
+	}
 
 	// TODO: add check
 	return err
@@ -364,6 +374,20 @@ func (w *Workloader) Run(ctx context.Context, threadID int) error {
 func (w *Workloader) Cleanup(ctx context.Context, threadID int) error {
 	if threadID == 0 {
 		if err := w.dropTable(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Workloader) DumpPlan(ctx context.Context) error {
+	ctx = w.InitThread(ctx, 0)
+	defer w.CleanupThread(ctx, 0)
+	w.prepareStmts(ctx)
+	for _, it := range w.txns {
+		fmt.Println("Plan:", it.name)
+		err := it.action(ctx, 0, true)
+		if err != nil {
 			return err
 		}
 	}

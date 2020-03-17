@@ -33,7 +33,7 @@ const (
 	deliveryUpdateCustomer = `UPDATE customer SET c_balance = c_balance + ?, c_delivery_cnt = c_delivery_cnt + 1 WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?`
 )
 
-func (w *Workloader) runDelivery(ctx context.Context, thread int) error {
+func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool) error {
 	s := w.getState(ctx)
 
 	d := deliveryData{

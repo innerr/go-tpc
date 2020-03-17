@@ -63,7 +63,7 @@ type paymentData struct {
 	cData      string
 }
 
-func (w *Workloader) runPayment(ctx context.Context, thread int) error {
+func (w *Workloader) runPayment(ctx context.Context, thread int, dumpPlan bool) error {
 	s := w.getState(ctx)
 
 	d := paymentData{

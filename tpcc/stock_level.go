@@ -8,7 +8,7 @@ const stockLevelCount = `SELECT COUNT(DISTINCT (s_i_id)) stock_count FROM order_
 WHERE ol_w_id = ? AND ol_d_id = ? AND ol_o_id < ? AND ol_o_id >= ? - 20 AND s_w_id = ? AND s_i_id = ol_i_id AND s_quantity < ?`
 const stockLevelSelectDistrict = `SELECT d_next_o_id FROM district WHERE d_w_id = ? AND d_id = ?`
 
-func (w *Workloader) runStockLevel(ctx context.Context, thread int) error {
+func (w *Workloader) runStockLevel(ctx context.Context, thread int, dumpPlan bool) error {
 	s := w.getState(ctx)
 
 	tx, err := w.beginTx(ctx)

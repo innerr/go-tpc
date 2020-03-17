@@ -75,6 +75,11 @@ func execute(ctx context.Context, w workload.Workloader, action string, index in
 }
 
 func executeWorkload(ctx context.Context, w workload.Workloader, action string) {
+	if action == "plan" {
+		w.DumpPlan(ctx)
+		return
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(threads)
 

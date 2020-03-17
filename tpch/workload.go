@@ -105,6 +105,10 @@ func (w Workloader) CheckPrepare(ctx context.Context, threadID int) error {
 	return nil
 }
 
+func (w Workloader) DumpPlan(ctx context.Context) error {
+	return nil
+}
+
 // Run runs workload
 func (w Workloader) Run(ctx context.Context, threadID int) error {
 	s := w.getState(ctx)

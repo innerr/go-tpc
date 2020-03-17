@@ -13,7 +13,7 @@ format: vet fmt
 fmt:
 	@echo "gofmt"
 	@gofmt -w ${FILES_TO_FMT}
-	@git diff --exit-code .
+	#@git diff --exit-code .
 
 test:
 	go test ./... -cover $(PACKAGES)

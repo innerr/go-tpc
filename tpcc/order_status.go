@@ -29,7 +29,7 @@ type orderStatusData struct {
 	oCarrierID sql.NullInt64
 }
 
-func (w *Workloader) runOrderStatus(ctx context.Context, thread int) error {
+func (w *Workloader) runOrderStatus(ctx context.Context, thread int, dumpPlan bool) error {
 	s := w.getState(ctx)
 	d := orderStatusData{
 		wID: randInt(s.R, 1, w.cfg.Warehouses),

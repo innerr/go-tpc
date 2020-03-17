@@ -117,7 +117,7 @@ type newOrderData struct {
 	dTax     float64
 }
 
-func (w *Workloader) runNewOrder(ctx context.Context, thread int) error {
+func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool) error {
 	s := w.getState(ctx)
 
 	// refer 2.4.1
@@ -173,6 +173,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int) error {
 	// TODO: support prepare statement
 
 	// Process 1
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, newOrderSelectCustomer, d.wID, d.dID, d.cID)
+	}
 	if err := s.newOrderStmts[newOrderSelectCustomer].QueryRowContext(ctx, d.wID, d.dID, d.cID).Scan(&d.cDiscount, &d.cLast, &d.cCredit, &d.wTax); err != nil {
 		return fmt.Errorf("exec %s failed %v", newOrderSelectCustomer, err)
 	}
