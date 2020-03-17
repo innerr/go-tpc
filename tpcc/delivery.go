@@ -52,11 +52,16 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 		amount float64
 	}
 	orders := make([]deliveryOrder, 10)
+	dumpedDeliverySelectNewOrder := false
 	for i := 0; i < districtPerWarehouse; i++ {
 		if err = s.deliveryStmts[deliverySelectNewOrder].QueryRowContext(ctx, d.wID, i+1).Scan(&orders[i].oID); err == sql.ErrNoRows {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("exec %s failed %v", deliverySelectNewOrder, err)
+		}
+		if dumpPlan && !dumpedDeliverySelectNewOrder {
+			PrintQueryPlan(ctx, s.Conn, deliverySelectNewOrder, d.wID, i+1)
+			dumpedDeliverySelectNewOrder = true
 		}
 	}
 
@@ -74,6 +79,19 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 	); err != nil {
 		return fmt.Errorf("exec %s failed %v", deliveryDeleteNewOrder, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, deliveryDeleteNewOrder,
+			d.wID, 1, orders[0].oID,
+			d.wID, 2, orders[1].oID,
+			d.wID, 3, orders[2].oID,
+			d.wID, 4, orders[3].oID,
+			d.wID, 5, orders[4].oID,
+			d.wID, 6, orders[5].oID,
+			d.wID, 7, orders[6].oID,
+			d.wID, 8, orders[7].oID,
+			d.wID, 9, orders[8].oID,
+			d.wID, 10, orders[9].oID)
+	}
 
 	if _, err = s.deliveryStmts[deliveryUpdateOrder].ExecContext(ctx, d.oCarrierID,
 		d.wID, 1, orders[0].oID,
@@ -88,6 +106,19 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 		d.wID, 10, orders[9].oID,
 	); err != nil {
 		return fmt.Errorf("exec %s failed %v", deliveryUpdateOrder, err)
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, deliveryUpdateOrder, d.oCarrierID,
+			d.wID, 1, orders[0].oID,
+			d.wID, 2, orders[1].oID,
+			d.wID, 3, orders[2].oID,
+			d.wID, 4, orders[3].oID,
+			d.wID, 5, orders[4].oID,
+			d.wID, 6, orders[5].oID,
+			d.wID, 7, orders[6].oID,
+			d.wID, 8, orders[7].oID,
+			d.wID, 9, orders[8].oID,
+			d.wID, 10, orders[9].oID)
 	}
 
 	if rows, err := s.deliveryStmts[deliverySelectOrders].QueryContext(ctx,
@@ -112,6 +143,19 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 			orders[dID-1].cID = cID
 		}
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, deliverySelectOrders,
+			d.wID, 1, orders[0].oID,
+			d.wID, 2, orders[1].oID,
+			d.wID, 3, orders[2].oID,
+			d.wID, 4, orders[3].oID,
+			d.wID, 5, orders[4].oID,
+			d.wID, 6, orders[5].oID,
+			d.wID, 7, orders[6].oID,
+			d.wID, 8, orders[7].oID,
+			d.wID, 9, orders[8].oID,
+			d.wID, 10, orders[9].oID)
+	}
 
 	if _, err = s.deliveryStmts[deliveryUpdateOrderLine].ExecContext(ctx, time.Now().Format(timeFormat),
 		d.wID, 1, orders[0].oID,
@@ -126,6 +170,19 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 		d.wID, 10, orders[9].oID,
 	); err != nil {
 		return fmt.Errorf("exec %s failed %v", deliveryUpdateOrderLine, err)
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, deliveryUpdateOrderLine, time.Now().Format(timeFormat),
+			d.wID, 1, orders[0].oID,
+			d.wID, 2, orders[1].oID,
+			d.wID, 3, orders[2].oID,
+			d.wID, 4, orders[3].oID,
+			d.wID, 5, orders[4].oID,
+			d.wID, 6, orders[5].oID,
+			d.wID, 7, orders[6].oID,
+			d.wID, 8, orders[7].oID,
+			d.wID, 9, orders[8].oID,
+			d.wID, 10, orders[9].oID)
 	}
 
 	if rows, err := s.deliveryStmts[deliverySelectSumAmount].QueryContext(ctx,
@@ -151,11 +208,29 @@ func (w *Workloader) runDelivery(ctx context.Context, thread int, dumpPlan bool)
 			orders[dID-1].amount = amount
 		}
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, deliverySelectSumAmount,
+			d.wID, 1, orders[0].oID,
+			d.wID, 2, orders[1].oID,
+			d.wID, 3, orders[2].oID,
+			d.wID, 4, orders[3].oID,
+			d.wID, 5, orders[4].oID,
+			d.wID, 6, orders[5].oID,
+			d.wID, 7, orders[6].oID,
+			d.wID, 8, orders[7].oID,
+			d.wID, 9, orders[8].oID,
+			d.wID, 10, orders[9].oID)
+	}
 
+	dumpedDistrictPerWarehouse := false
 	for i := 0; i < districtPerWarehouse; i++ {
 		order := &orders[i]
 		if order.oID == 0 {
 			continue
+		}
+		if dumpPlan && !dumpedDistrictPerWarehouse {
+			PrintQueryPlan(ctx, s.Conn, deliveryUpdateCustomer, order.amount, d.wID, i+1, order.cID)
+			dumpedDistrictPerWarehouse = true
 		}
 		if _, err = s.deliveryStmts[deliveryUpdateCustomer].ExecContext(ctx, order.amount, d.wID, i+1, order.cID); err != nil {
 			return fmt.Errorf("exec %s failed %v", deliveryUpdateCustomer, err)

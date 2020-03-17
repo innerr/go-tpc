@@ -385,7 +385,7 @@ func (w *Workloader) DumpPlan(ctx context.Context) error {
 	defer w.CleanupThread(ctx, 0)
 	w.prepareStmts(ctx)
 	for _, it := range w.txns {
-		fmt.Println("Plan:", it.name)
+		fmt.Println("==> plan: " + it.name)
 		err := it.action(ctx, 0, true)
 		if err != nil {
 			return err

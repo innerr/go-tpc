@@ -27,6 +27,9 @@ func (w *Workloader) runStockLevel(ctx context.Context, thread int, dumpPlan boo
 	if err := s.stockLevelStmt[stockLevelSelectDistrict].QueryRowContext(ctx, wID, dID).Scan(&oID); err != nil {
 		return err
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, stockLevelSelectDistrict, wID, dID)
+	}
 
 	// SELECT COUNT(DISTINCT (s_i_id)) INTO :stock_count FROM order_line, stock
 	// WHERE ol_w_id=:w_id AND ol_d_id=:d_id AND ol_o_id<:o_id AND ol_o_id>=:o_id-20
@@ -34,6 +37,9 @@ func (w *Workloader) runStockLevel(ctx context.Context, thread int, dumpPlan boo
 	var stockCount int
 	if err := s.stockLevelStmt[stockLevelCount].QueryRowContext(ctx, wID, dID, oID, oID, wID, threshold).Scan(&stockCount); err != nil {
 		return err
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, stockLevelCount, wID, dID, oID, oID, wID, threshold)
 	}
 
 	return tx.Commit()

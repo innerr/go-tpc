@@ -98,26 +98,41 @@ func (w *Workloader) runPayment(ctx context.Context, thread int, dumpPlan bool) 
 	if _, err := s.paymentStmts[paymentUpdateDistrict].ExecContext(ctx, d.hAmount, d.wID, d.dID); err != nil {
 		return fmt.Errorf("exec %s failed %v", paymentUpdateDistrict, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentUpdateDistrict, d.hAmount, d.wID, d.dID)
+	}
 
 	// Process 2
 	if err := s.paymentStmts[paymentSelectDistrict].QueryRowContext(ctx, d.wID, d.dID).Scan(&d.dStreet1, &d.dStreet2,
 		&d.dCity, &d.dState, &d.dZip, &d.dName); err != nil {
 		return fmt.Errorf("exec %s failed %v", paymentSelectDistrict, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentSelectDistrict, d.wID, d.dID)
+	}
 
 	// Process 3
 	if _, err := s.paymentStmts[paymentUpdateWarehouse].ExecContext(ctx, d.hAmount, d.wID); err != nil {
 		return fmt.Errorf("exec %s failed %v", paymentUpdateWarehouse, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentUpdateWarehouse, d.hAmount, d.wID)
+	}
 
 	// Process 4
 	if err := s.paymentStmts[paymentSelectWarehouse].QueryRowContext(ctx, d.wID).Scan(&d.wStreet1, &d.wStreet2,
 		&d.wCity, &d.wState, &d.wZip, &d.wName); err != nil {
-		return fmt.Errorf("exec %s failed %v", paymentSelectDistrict, err)
+		return fmt.Errorf("exec %s failed %v", paymentSelectWarehouse, err)
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentSelectWarehouse, d.wID)
 	}
 
 	if d.cID == 0 {
 		// Process 5
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, paymentSelectCustomerListByLast, d.cWID, d.cDID, d.cLast)
+		}
 		rows, err := s.paymentStmts[paymentSelectCustomerListByLast].QueryContext(ctx, d.cWID, d.cDID, d.cLast)
 		if err != nil {
 			return fmt.Errorf("exec %s failed %v", paymentSelectCustomerListByLast, err)
@@ -142,11 +157,17 @@ func (w *Workloader) runPayment(ctx context.Context, thread int, dumpPlan bool) 
 		&d.cDiscount, &d.cBalance, &d.cSince); err != nil {
 		return fmt.Errorf("exec %s failed %v", paymentSelectCustomerForUpdate, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentSelectCustomerForUpdate, d.cWID, d.cDID, d.cID)
+	}
 
 	if d.cCredit == "BC" {
 		// Process 7
 		if err := s.paymentStmts[paymentSelectCustomerData].QueryRowContext(ctx, d.cWID, d.cDID, d.cID).Scan(&d.cData); err != nil {
 			return fmt.Errorf("exec %s failed %v", paymentSelectCustomerData, err)
+		}
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, paymentSelectCustomerData, d.cWID, d.cDID, d.cID)
 		}
 
 		newData := fmt.Sprintf("| %4d %2d %4d %2d %4d $%7.2f %12s %24s", d.cID, d.cDID, d.cWID,
@@ -161,10 +182,16 @@ func (w *Workloader) runPayment(ctx context.Context, thread int, dumpPlan bool) 
 		if _, err := s.paymentStmts[paymentUpdateCustomerWithData].ExecContext(ctx, d.hAmount, d.hAmount, newData, d.cWID, d.cDID, d.cID); err != nil {
 			return fmt.Errorf("exec %s failed %v", paymentUpdateCustomerWithData, err)
 		}
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, paymentUpdateCustomerWithData, d.hAmount, d.hAmount, newData, d.cWID, d.cDID, d.cID)
+		}
 	} else {
 		// Process 9
 		if _, err := s.paymentStmts[paymentUpdateCustomer].ExecContext(ctx, d.hAmount, d.hAmount, d.cWID, d.cDID, d.cID); err != nil {
 			return fmt.Errorf("exec %s failed %v", paymentUpdateCustomer, err)
+		}
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, paymentUpdateCustomer, d.hAmount, d.hAmount, d.cWID, d.cDID, d.cID)
 		}
 	}
 
@@ -172,6 +199,9 @@ func (w *Workloader) runPayment(ctx context.Context, thread int, dumpPlan bool) 
 	hData := fmt.Sprintf("%10s    %10s", d.wName, d.dName)
 	if _, err := s.paymentStmts[paymentInsertHistory].ExecContext(ctx, d.cDID, d.cWID, d.cID, d.dID, d.wID, time.Now().Format(timeFormat), d.hAmount, hData); err != nil {
 		return fmt.Errorf("exec %s failed %v", paymentInsertHistory, err)
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, paymentInsertHistory, d.cDID, d.cWID, d.cID, d.dID, d.wID, time.Now().Format(timeFormat), d.hAmount, hData)
 	}
 
 	return tx.Commit()

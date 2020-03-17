@@ -57,6 +57,9 @@ func (w *Workloader) runOrderStatus(ctx context.Context, thread int, dumpPlan bo
 		if err := s.orderStatusStmts[orderStatusSelectCustomerCntByLast].QueryRowContext(ctx, d.wID, d.dID, d.cLast).Scan(&nameCnt); err != nil {
 			return fmt.Errorf("exec %s failed %v", orderStatusSelectCustomerCntByLast, err)
 		}
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, orderStatusSelectCustomerCntByLast, d.wID, d.dID, d.cLast)
+		}
 		if nameCnt%2 == 1 {
 			nameCnt++
 		}
@@ -72,12 +75,20 @@ func (w *Workloader) runOrderStatus(ctx context.Context, thread int, dumpPlan bo
 		}
 
 		rows.Close()
+
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, orderStatusSelectCustomerByLast, d.wID, d.dID, d.cLast)
+		}
+
 		if err := rows.Err(); err != nil {
 			return err
 		}
 	} else {
 		if err := s.orderStatusStmts[orderStatusSelectCustomerByID].QueryRowContext(ctx, d.wID, d.dID, d.cID).Scan(&d.cBalance, &d.cFirst, &d.cMiddle, &d.cLast); err != nil {
 			return fmt.Errorf("exec %s failed %v", orderStatusSelectCustomerByID, err)
+		}
+		if dumpPlan {
+			PrintQueryPlan(ctx, s.Conn, orderStatusSelectCustomerByID, d.wID, d.dID, d.cID)
 		}
 	}
 
@@ -89,12 +100,18 @@ func (w *Workloader) runOrderStatus(ctx context.Context, thread int, dumpPlan bo
 	if err := s.orderStatusStmts[orderStatusSelectLatestOrder].QueryRowContext(ctx, d.wID, d.dID, d.cID).Scan(&d.oID, &d.oCarrierID, &d.oEntryD); err != nil {
 		return fmt.Errorf("exec %s failed %v", orderStatusSelectLatestOrder, err)
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, orderStatusSelectLatestOrder, d.wID, d.dID, d.cID)
+	}
 
 	// SQL DECLARE c_line CURSOR FOR SELECT ol_i_id, ol_supply_w_id, ol_quantity,
 	// 	ol_amount, ol_delivery_d
 	// 	FROM order_line
 	// 	WHERE ol_o_id=:o_id AND ol_d_id=:d_id AND ol_w_id=:w_id;
 	// OPEN c_line;
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, orderStatusSelectOrderLine, d.wID, d.dID, d.oID)
+	}
 	rows, err := s.orderStatusStmts[orderStatusSelectOrderLine].QueryContext(ctx, d.wID, d.dID, d.oID)
 	if err != nil {
 		return fmt.Errorf("exec %s failed %v", orderStatusSelectOrderLine, err)

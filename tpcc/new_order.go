@@ -181,11 +181,17 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 	}
 
 	// Process 2
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, newOrderSelectDistrict, d.dID, d.wID)
+	}
 	if err := s.newOrderStmts[newOrderSelectDistrict].QueryRowContext(ctx, d.dID, d.wID).Scan(&d.dNextOID, &d.dTax); err != nil {
 		return fmt.Errorf("exec %s failed %v", newOrderSelectDistrict, err)
 	}
 
 	// Process 3
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, newOrderUpdateDistrict, d.dNextOID, d.dID, d.wID)
+	}
 	if _, err := s.newOrderStmts[newOrderUpdateDistrict].ExecContext(ctx, d.dNextOID, d.dID, d.wID); err != nil {
 		return fmt.Errorf("exec %s failed %v", newOrderUpdateDistrict, err)
 	}
@@ -193,6 +199,10 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 	oID := d.dNextOID
 
 	// Process 4
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, newOrderInsertOrder, oID, d.dID, d.wID, d.cID,
+			time.Now().Format(timeFormat), d.oOlCnt, allLocal)
+	}
 	if _, err := s.newOrderStmts[newOrderInsertOrder].ExecContext(ctx, oID, d.dID, d.wID, d.cID,
 		time.Now().Format(timeFormat), d.oOlCnt, allLocal); err != nil {
 		return fmt.Errorf("exec %s failed %v", newOrderInsertOrder, err)
@@ -202,6 +212,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 
 	// INSERT INTO new_order (no_o_id, no_d_id, no_w_id) VALUES (:o_id , :d _id , :w _id );
 	// query = `INSERT INTO new_order (no_o_id, no_d_id, no_w_id) VALUES (?, ?, ?)`
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, newOrderInsertNewOrder, oID, d.dID, d.wID)
+	}
 	if _, err := s.newOrderStmts[newOrderInsertNewOrder].ExecContext(ctx, oID, d.dID, d.wID); err != nil {
 		return fmt.Errorf("exec %s failed %v", newOrderInsertNewOrder, err)
 	}
@@ -211,6 +224,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 	selectItemArgs := make([]interface{}, len(items))
 	for i := range items {
 		selectItemArgs[i] = items[i].olIID
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, selectItemSQL, selectItemArgs...)
 	}
 	rows, err := s.newOrderStmts[selectItemSQL].QueryContext(ctx, selectItemArgs...)
 	if err != nil {
@@ -246,6 +262,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 		selectStockArgs[i*2] = d.wID
 		selectStockArgs[i*2+1] = items[i].olIID
 	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, selectStockSQL, selectStockArgs...)
+	}
 	rows, err = s.newOrderStmts[selectStockSQL].QueryContext(ctx, selectStockArgs...)
 	if err != nil {
 		return fmt.Errorf("exec %s failed %v", selectStockSQL, err)
@@ -279,6 +298,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 		if item.olIID < 0 {
 			return nil
 		}
+		if dumpPlan && i == 0 {
+			PrintQueryPlan(ctx, s.Conn, newOrderUpdateStock, item.sQuantity, item.olQuantity, item.remoteWarehouse, item.olIID, d.wID)
+		}
 		if _, err = s.newOrderStmts[newOrderUpdateStock].ExecContext(ctx, item.sQuantity, item.olQuantity, item.remoteWarehouse, item.olIID, d.wID); err != nil {
 			return fmt.Errorf("exec %s failed %v", newOrderUpdateStock, err)
 		}
@@ -298,6 +320,9 @@ func (w *Workloader) runNewOrder(ctx context.Context, thread int, dumpPlan bool)
 		insertOrderLineArgs[i*9+6] = item.olQuantity
 		insertOrderLineArgs[i*9+7] = item.olAmount
 		insertOrderLineArgs[i*9+8] = item.sDist
+	}
+	if dumpPlan {
+		PrintQueryPlan(ctx, s.Conn, insertOrderLineSQL, insertOrderLineArgs...)
 	}
 	if _, err = s.newOrderStmts[insertOrderLineSQL].ExecContext(ctx, insertOrderLineArgs...); err != nil {
 		return fmt.Errorf("exec %s failed %v", insertOrderLineSQL, err)
